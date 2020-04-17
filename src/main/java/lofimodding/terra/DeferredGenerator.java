@@ -30,10 +30,14 @@ public class DeferredGenerator extends Feature<NoFeatureConfig> {
     final ChunkPos chunkPos = new ChunkPos(start);
 
     if(deferred.has(chunkPos)) {
-      deferred.getOres(chunkPos).forEach((pos, ore) -> {
+      deferred.getOres(chunkPos).forEach((pos, replacers) -> {
         final BlockState oldState = world.getBlockState(pos);
-        if(oldState.getBlock().isReplaceableOreGen(oldState, world.getWorld(), pos, TerraOreVein::stonePredicate)) {
-          this.setBlockState(world, pos, ore);
+
+        for(final TerraOreVeinConfig.Replacer replacer : replacers) {
+          if(oldState.getBlock().isReplaceableOreGen(oldState, world.getWorld(), pos, replacer)) {
+            this.setBlockState(world, pos, replacer.blockToPlace);
+            break;
+          }
         }
       });
 

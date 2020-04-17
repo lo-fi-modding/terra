@@ -11,7 +11,9 @@ import net.minecraft.world.server.ServerWorld;
 import net.minecraft.world.storage.WorldSavedData;
 import net.minecraftforge.common.util.Constants;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class DeferredGenerationStorage extends WorldSavedData {
@@ -39,7 +41,7 @@ public class DeferredGenerationStorage extends WorldSavedData {
     return this.deferred.containsKey(pos);
   }
 
-  public Map<BlockPos, BlockState> getOres(final ChunkPos pos) {
+  public Map<BlockPos, List<TerraOreVeinConfig.Replacer>> getOres(final ChunkPos pos) {
     if(!this.deferred.containsKey(pos)) {
       final Deferred deferred = new Deferred();
       this.deferred.put(pos, deferred);
@@ -74,16 +76,22 @@ public class DeferredGenerationStorage extends WorldSavedData {
 
       final ChunkPos chunkPos = new ChunkPos(chunkNbt.getInt("x"), chunkNbt.getInt("z"));
 
-      final Map<BlockPos, BlockState> ores = this.getOres(chunkPos);
+      final Map<BlockPos, List<TerraOreVeinConfig.Replacer>> ores = this.getOres(chunkPos);
       final ListNBT oreList = chunkNbt.getList("ores", Constants.NBT.TAG_COMPOUND);
 
       for(final INBT oreBase : oreList) {
         final CompoundNBT oreNbt = (CompoundNBT)oreBase;
 
         final BlockPos blockPos = NBTUtil.readBlockPos(oreNbt.getCompound("pos"));
-        final BlockState ore = NBTUtil.readBlockState(oreNbt.getCompound("ore"));
 
-        ores.put(blockPos, ore);
+        final ListNBT replacerListNbt = oreNbt.getList("replacers", Constants.NBT.TAG_COMPOUND);
+        final List<TerraOreVeinConfig.Replacer> replacers = new ArrayList<>();
+        for(int i = 0; i < replacerListNbt.size(); i++) {
+          final CompoundNBT replacerNbt = replacerListNbt.getCompound(i);
+          replacers.add(TerraOreVeinConfig.Replacer.read(replacerNbt));
+        }
+
+        ores.put(blockPos, replacers);
       }
 
       final Map<BlockPos, BlockState> pebbles = this.getPebbles(chunkPos);
@@ -115,12 +123,18 @@ public class DeferredGenerationStorage extends WorldSavedData {
       final ListNBT oreList = new ListNBT();
       chunkNbt.put("ores", oreList);
 
-      deferred.ores.forEach((blockPos, ore) -> {
+      deferred.ores.forEach((blockPos, replacers) -> {
         final CompoundNBT oreNbt = new CompoundNBT();
         oreList.add(oreNbt);
 
         oreNbt.put("pos", NBTUtil.writeBlockPos(blockPos));
-        oreNbt.put("ore", NBTUtil.writeBlockState(ore));
+
+        final ListNBT replacerList = new ListNBT();
+        for(final TerraOreVeinConfig.Replacer replacer : replacers) {
+          replacerList.add(replacer.write(new CompoundNBT()));
+        }
+
+        oreNbt.put("replacers", replacerList);
       });
 
       final ListNBT pebbleList = new ListNBT();
@@ -139,7 +153,7 @@ public class DeferredGenerationStorage extends WorldSavedData {
   }
 
   private static class Deferred {
-    private final Map<BlockPos, BlockState> ores = new HashMap<>();
+    private final Map<BlockPos, List<TerraOreVeinConfig.Replacer>> ores = new HashMap<>();
     private final Map<BlockPos, BlockState> pebbles = new HashMap<>();
   }
 }

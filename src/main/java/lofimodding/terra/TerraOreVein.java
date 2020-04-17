@@ -2,7 +2,6 @@ package lofimodding.terra;
 
 import com.mojang.datafixers.Dynamic;
 import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Direction;
 import net.minecraft.util.math.BlockPos;
@@ -13,11 +12,9 @@ import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.GenerationSettings;
 import net.minecraft.world.gen.feature.Feature;
 import net.minecraft.world.server.ServerWorld;
-import net.minecraftforge.common.Tags;
 import org.joml.Matrix3f;
 import org.joml.Vector3f;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,15 +29,6 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
 
   public TerraOreVein(final Function<Dynamic<?>, ? extends TerraOreVeinConfig> config) {
     super(config);
-  }
-
-  //TODO: handle this predicate better... needs to be configurable, but still work with deferred gen
-  static boolean stonePredicate(@Nullable final BlockState state) {
-    if(state == null) {
-      return false;
-    }
-
-    return state.isIn(Tags.Blocks.STONE) || state.getBlock() == Blocks.GRAVEL;
   }
 
   private final OreGenState state = new OreGenState();
@@ -75,7 +63,7 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
       }
     }
 
-    final Map<BlockPos, BlockState> oresToPlace = new HashMap<>();
+    final Map<BlockPos, List<TerraOreVeinConfig.Replacer>> oresToPlace = new HashMap<>();
     final Map<BlockPos, BlockState> pebblesToPlace = new HashMap<>();
 
     // 1/x chance for a vein to change direction by up to 45 degrees total (across all axes).
@@ -121,7 +109,7 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
 
           blockPos.setPos(root.x + pos.x, root.y + pos.y, root.z + pos.z);
 
-          this.placeBlock(oresToPlace, world, blockPos, stage.ore);
+          this.placeBlock(oresToPlace, world, blockPos, stage.ores);
         }
       }
 
@@ -133,11 +121,15 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
     }
 
     int placed = 0;
-    for(final Map.Entry<BlockPos, BlockState> block : oresToPlace.entrySet()) {
+    for(final Map.Entry<BlockPos, List<TerraOreVeinConfig.Replacer>> block : oresToPlace.entrySet()) {
       final BlockState state = world.getBlockState(block.getKey());
-      if(state.isReplaceableOreGen(world.getWorld(), block.getKey(), TerraOreVein::stonePredicate)) {
-        this.setBlockState(world, block.getKey(), block.getValue());
-        placed++;
+
+      for(final TerraOreVeinConfig.Replacer replacer : block.getValue()) {
+        if(state.isReplaceableOreGen(world.getWorld(), block.getKey(), replacer)) {
+          this.setBlockState(world, block.getKey(), replacer.blockToPlace);
+          placed++;
+          break;
+        }
       }
     }
 
@@ -159,7 +151,7 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
     if(!world.chunkExists(chunkX, chunkZ)) {
       final ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
       final DeferredGenerationStorage deferredOres = DeferredGenerationStorage.get((ServerWorld)world.getWorld());
-      deferredOres.getOres(chunkPos).put(new BlockPos(x, 0, z), pebble);
+      deferredOres.getPebbles(chunkPos).put(new BlockPos(x, 0, z), pebble);
       deferredOres.markDirty();
       return;
     }
@@ -177,7 +169,7 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
     }
   }
 
-  private void placeBlock(final Map<BlockPos, BlockState> blocksToPlace, final IWorld world, final BlockPos pos, final BlockState ore) {
+  private void placeBlock(final Map<BlockPos, List<TerraOreVeinConfig.Replacer>> blocksToPlace, final IWorld world, final BlockPos pos, final List<TerraOreVeinConfig.Replacer> replacer) {
     if(World.isOutsideBuildHeight(pos)) {
       return;
     }
@@ -186,11 +178,11 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
 
     if(!world.chunkExists(chunkPos.x, chunkPos.z)) {
       final DeferredGenerationStorage deferredOres = DeferredGenerationStorage.get((ServerWorld)world.getWorld());
-      deferredOres.getOres(chunkPos).put(pos.toImmutable(), ore);
+      deferredOres.getOres(chunkPos).put(pos.toImmutable(), replacer);
       deferredOres.markDirty();
       return;
     }
 
-    blocksToPlace.put(pos.toImmutable(), ore);
+    blocksToPlace.put(pos.toImmutable(), replacer);
   }
 }

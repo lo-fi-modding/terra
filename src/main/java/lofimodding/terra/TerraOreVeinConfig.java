@@ -2,14 +2,22 @@ package lofimodding.terra;
 
 import com.mojang.datafixers.Dynamic;
 import com.mojang.datafixers.types.DynamicOps;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.nbt.CompoundNBT;
+import net.minecraft.nbt.NBTUtil;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.Tag;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.gen.feature.IFeatureConfig;
+import net.minecraftforge.common.Tags;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class TerraOreVeinConfig implements IFeatureConfig {
   public static TerraOreVeinConfig create(final Consumer<ConfigBuilder> callback) {
@@ -40,15 +48,89 @@ public class TerraOreVeinConfig implements IFeatureConfig {
     return new TerraOreVeinConfig(new Stage[0], new Pebble[0], i -> 0, i -> 0);
   }
 
+  public static abstract class Replacer implements Predicate<BlockState> {
+    public static Replacer read(final CompoundNBT tag) {
+      switch(tag.getString("type")) {
+        case "tag":
+          return TagReplacer.read(tag);
+
+        case "state":
+          return StateReplacer.read(tag);
+      }
+
+      throw new RuntimeException("Unknown replacer type: " + tag.getString("replacer"));
+    }
+
+    public final BlockState blockToPlace;
+
+    protected Replacer(final BlockState blockToPlace) {
+      this.blockToPlace = blockToPlace;
+    }
+
+    public abstract CompoundNBT write(final CompoundNBT tag);
+  }
+
+  public static class TagReplacer extends Replacer {
+    public static TagReplacer read(final CompoundNBT tag) {
+      return new TagReplacer(BlockTags.getCollection().get(new ResourceLocation(tag.getString("tagToReplace"))), NBTUtil.readBlockState(tag.getCompound("stateToPlace")));
+    }
+
+    private final Tag<Block> tag;
+
+    public TagReplacer(final Tag<Block> tagToReplace, final BlockState blockToPlace) {
+      super(blockToPlace);
+      this.tag = tagToReplace;
+    }
+
+    @Override
+    public boolean test(final BlockState state) {
+      return state.isIn(this.tag);
+    }
+
+    @Override
+    public CompoundNBT write(final CompoundNBT tag) {
+      tag.putString("type", "tag");
+      tag.putString("tagToReplace", this.tag.getId().toString());
+      tag.put("stateToPlace", NBTUtil.writeBlockState(this.blockToPlace));
+      return tag;
+    }
+  }
+
+  public static class StateReplacer extends Replacer {
+    public static StateReplacer read(final CompoundNBT tag) {
+      return new StateReplacer(NBTUtil.readBlockState(tag.getCompound("stateToReplace")), NBTUtil.readBlockState(tag.getCompound("stateToPlace")));
+    }
+
+    private final BlockState state;
+
+    public StateReplacer(final BlockState blockToReplace,  final BlockState blockToPlace) {
+      super(blockToPlace);
+      this.state = blockToReplace;
+    }
+
+    @Override
+    public boolean test(final BlockState state) {
+      return this.state.getBlock() == state.getBlock();
+    }
+
+    @Override
+    public CompoundNBT write(final CompoundNBT tag) {
+      tag.putString("type", "state");
+      tag.put("stateToReplace", NBTUtil.writeBlockState(this.state));
+      tag.put("stateToPlace", NBTUtil.writeBlockState(this.blockToPlace));
+      return tag;
+    }
+  }
+
   public static final class Stage {
-    public final BlockState ore;
+    public final List<Replacer> ores;
     public final StateFunction<Integer> minRadius;
     public final StateFunction<Integer> maxRadius;
     public final StateFunction<Float> blockDensity;
     public final StateFunction<Float> stageSpawnChance;
 
-    private Stage(final BlockState ore, final StateFunction<Integer> minRadius, final StateFunction<Integer> maxRadius, final StateFunction<Float> blockDensity, final StateFunction<Float> stageSpawnChance) {
-      this.ore = ore;
+    private Stage(final List<Replacer> ores, final StateFunction<Integer> minRadius, final StateFunction<Integer> maxRadius, final StateFunction<Float> blockDensity, final StateFunction<Float> stageSpawnChance) {
+      this.ores = ores;
       this.minRadius = minRadius;
       this.maxRadius = maxRadius;
       this.blockDensity = blockDensity;
@@ -115,7 +197,7 @@ public class TerraOreVeinConfig implements IFeatureConfig {
   }
 
   public static final class StageBuilder {
-    private BlockState ore = Blocks.STONE.getDefaultState();
+    private final List<Replacer> ore = new ArrayList<>();
     private StateFunction<Integer> minRadius = state -> 0;
     private StateFunction<Integer> maxRadius = state -> 5;
     private StateFunction<Float> blockDensity = state -> 0.75f;
@@ -124,7 +206,19 @@ public class TerraOreVeinConfig implements IFeatureConfig {
     private StageBuilder() { }
 
     public StageBuilder ore(final BlockState ore) {
-      this.ore = ore;
+      return this.ore(Tags.Blocks.STONE, ore);
+    }
+
+    public StageBuilder ore(final Tag<Block> tagToReplace, final BlockState ore) {
+      return this.ore(new TagReplacer(tagToReplace, ore));
+    }
+
+    public StageBuilder ore(final BlockState stateToReplace, final BlockState ore) {
+      return this.ore(new StateReplacer(stateToReplace, ore));
+    }
+
+    public StageBuilder ore(final Replacer replacer) {
+      this.ore.add(replacer);
       return this;
     }
 
