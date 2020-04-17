@@ -95,6 +95,8 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
       // More likely to change direction the longer we go without doing so
       changeDirectionDivisor--;
 
+      final ChunkPos startingChunk = new ChunkPos(start);
+
       for(final TerraOreVeinConfig.Stage stage : stages) {
         final int minRadius = stage.minRadius.apply(this.state);
         final int maxRadius = stage.maxRadius.apply(this.state);
@@ -109,13 +111,13 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
 
           blockPos.setPos(root.x + pos.x, root.y + pos.y, root.z + pos.z);
 
-          this.placeBlock(oresToPlace, world, blockPos, stage.ores);
+          this.placeBlock(oresToPlace, world, startingChunk, blockPos, stage.ores);
         }
       }
 
       for(final TerraOreVeinConfig.Pebble pebble : config.pebbles) {
         if(rand.nextFloat() <= pebble.density) {
-          this.placePebble(pebblesToPlace, world, pebble.pebble, (int)(root.x + pos.x), (int)(root.z + pos.z));
+          this.placePebble(pebblesToPlace, world, startingChunk, pebble.pebble, (int)(root.x + pos.x), (int)(root.z + pos.z));
         }
       }
     }
@@ -125,7 +127,7 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
       final BlockState state = world.getBlockState(block.getKey());
 
       for(final TerraOreVeinConfig.Replacer replacer : block.getValue()) {
-        if(state.isReplaceableOreGen(world.getWorld(), block.getKey(), replacer)) {
+        if(state.isReplaceableOreGen(world, block.getKey(), replacer)) {
           this.setBlockState(world, block.getKey(), replacer.blockToPlace);
           placed++;
           break;
@@ -144,12 +146,13 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
     return false;
   }
 
-  private void placePebble(final Map<BlockPos, BlockState> blocksToPlace, final IWorld world, final BlockState pebble, final int x, final int z) {
+  private void placePebble(final Map<BlockPos, BlockState> blocksToPlace, final IWorld world, final ChunkPos startingChunk, final BlockState pebble, final int x, final int z) {
     final int chunkX = x >> 4;
     final int chunkZ = z >> 4;
 
-    if(!world.chunkExists(chunkX, chunkZ)) {
-      final ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+    final ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+
+    if(!chunkPos.equals(startingChunk)) {
       final DeferredGenerationStorage deferredOres = DeferredGenerationStorage.get((ServerWorld)world.getWorld());
       deferredOres.getPebbles(chunkPos).put(new BlockPos(x, 0, z), pebble);
       deferredOres.markDirty();
@@ -169,14 +172,14 @@ public class TerraOreVein extends Feature<TerraOreVeinConfig> {
     }
   }
 
-  private void placeBlock(final Map<BlockPos, List<TerraOreVeinConfig.Replacer>> blocksToPlace, final IWorld world, final BlockPos pos, final List<TerraOreVeinConfig.Replacer> replacer) {
+  private void placeBlock(final Map<BlockPos, List<TerraOreVeinConfig.Replacer>> blocksToPlace, final IWorld world, final ChunkPos startingChunk, final BlockPos pos, final List<TerraOreVeinConfig.Replacer> replacer) {
     if(World.isOutsideBuildHeight(pos)) {
       return;
     }
 
     final ChunkPos chunkPos = new ChunkPos(pos);
 
-    if(!world.chunkExists(chunkPos.x, chunkPos.z)) {
+    if(!chunkPos.equals(startingChunk)) {
       final DeferredGenerationStorage deferredOres = DeferredGenerationStorage.get((ServerWorld)world.getWorld());
       deferredOres.getOres(chunkPos).put(pos.toImmutable(), replacer);
       deferredOres.markDirty();
