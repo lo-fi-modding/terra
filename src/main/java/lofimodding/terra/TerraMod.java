@@ -23,7 +23,7 @@ public class TerraMod {
 
   private void setup(final FMLCommonSetupEvent event) {
     for(final Biome biome : Biome.BIOMES) {
-      biome.addFeature(GenerationStage.Decoration.UNDERGROUND_ORES, DeferredGenerator.INSTANCE.func_225566_b_(IFeatureConfig.NO_FEATURE_CONFIG).func_227228_a_(Placement.NOPE.func_227446_a_(IPlacementConfig.NO_PLACEMENT_CONFIG)));
+      biome.addFeature(GenerationStage.Decoration.UNDERGROUND_ORES, DeferredGenerator.INSTANCE.withConfiguration(IFeatureConfig.NO_FEATURE_CONFIG).withPlacement(Placement.NOPE.configure(IPlacementConfig.NO_PLACEMENT_CONFIG)));
     }
   }
 }
