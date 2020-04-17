@@ -1,6 +1,8 @@
 package lofimodding.terra;
 
 import com.mojang.datafixers.Dynamic;
+import lofimodding.terra.joml.Matrix3f;
+import lofimodding.terra.joml.Vector3f;
 import net.minecraft.block.BlockState;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Direction;
@@ -12,8 +14,6 @@ import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.GenerationSettings;
 import net.minecraft.world.gen.feature.Feature;
 import net.minecraft.world.server.ServerWorld;
-import org.joml.Matrix3f;
-import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.HashMap;

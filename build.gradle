@@ -109,8 +109,6 @@ dependencies {
   // For more info...
   // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
   // http://www.gradle.org/docs/current/userguide/dependency_management.html
-
-  compile "org.joml:joml:1.9.20"
 }
 
 // Example for how to get properties into the manifest for reading by the runtime..
